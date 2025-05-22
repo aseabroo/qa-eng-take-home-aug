@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - QA Take-Home Exam</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .admin-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        .admin-feature {
+            transition: transform 0.2s;
+        }
+        .admin-feature:hover {
+            transform: translateY(-3px);
+        }
+        .access-denied {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt"></i> Admin Panel
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+                <span class="navbar-text me-3" id="adminInfo">Loading...</span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Verifying admin access...</p>
+        </div>
+
+        <!-- Access Denied State -->
+        <div id="accessDenied" class="access-denied" style="display: none;">
+            <h1><i class="fas fa-ban"></i> Access Denied</h1>
+            <p class="lead">You don't have permission to access this admin panel.</p>
+            <p>Only users with admin role can access this area.</p>
+            <a href="/dashboard" class="btn btn-light">Back to Dashboard</a>
+        </div>
+
+        <!-- Admin Content -->
+        <div id="adminContent" style="display: none;">
+            <div class="admin-header">
+                <h1><i class="fas fa-crown"></i> Admin Control Panel</h1>
+                <p class="lead mb-0">Administrative tools and system management</p>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card admin-feature h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h5><i class="fas fa-users"></i> User Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Manage user accounts, roles, and permissions</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" onclick="loadUsers()">View All Users</button>
+                                <button class="btn btn-outline-primary" onclick="testAdminAPI()">Test Admin API</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <div class="card admin-feature h-100">
+                        <div class="card-header bg-success text-white">
+                            <h5><i class="fas fa-database"></i> System Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Database operations and system maintenance</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success" onclick="seedData()">Seed Test Data</button>
+                                <button class="btn btn-outline-success" onclick="checkHealth()">Health Check</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <div class="card admin-feature h-100">
+                        <div class="card-header bg-warning text-dark">
+                            <h5><i class="fas fa-chart-bar"></i> Analytics</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>System statistics and usage analytics</p>
+                            <div id="systemStats">
+                                <p class="text-muted">Loading statistics...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <div class="card admin-feature h-100">
+                        <div class="card-header bg-danger text-white">
+                            <h5><i class="fas fa-tools"></i> Developer Tools</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Testing and debugging utilities</p>
+                            <div class="d-grid gap-2">
+                                <a href="/docs" target="_blank" class="btn btn-danger">API Documentation</a>
+                                <button class="btn btn-outline-danger" onclick="viewLogs()">View System Logs</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="card mt-4" style="display: none;">
+                <div class="card-header">
+                    <h5 id="resultsTitle">Results</h5>
+                </div>
+                <div class="card-body">
+                    <pre id="resultsContent"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAdminAccess();
+        });
+
+        async function checkAdminAccess() {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                // First get current user info
+                const userResponse = await fetch('/api/v1/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!userResponse.ok) {
+                    throw new Error('Authentication failed');
+                }
+
+                currentUser = await userResponse.json();
+                
+                // Check if user is admin
+                if (currentUser.role !== 'admin') {
+                    showAccessDenied();
+                    return;
+                }
+
+                // Test admin endpoint access
+                const adminResponse = await fetch('/api/v1/auth/admin-only', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (adminResponse.ok) {
+                    showAdminContent();
+                    loadSystemStats();
+                } else {
+                    showAccessDenied();
+                }
+
+            } catch (error) {
+                console.error('Admin access check failed:', error);
+                showAccessDenied();
+            }
+        }
+
+        function showAccessDenied() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('accessDenied').style.display = 'block';
+            document.getElementById('adminContent').style.display = 'none';
+        }
+
+        function showAdminContent() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('accessDenied').style.display = 'none';
+            document.getElementById('adminContent').style.display = 'block';
+            
+            if (currentUser) {
+                document.getElementById('adminInfo').textContent = `Admin: ${currentUser.name}`;
+            }
+        }
+
+        async function loadSystemStats() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const [usersResponse, projectsResponse, tasksResponse] = await Promise.all([
+                    fetch('/api/v1/users/', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('/api/v1/projects/', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('/api/v1/tasks/', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+
+                const users = await usersResponse.json();
+                const projects = await projectsResponse.json();
+                const tasks = await tasksResponse.json();
+
+                document.getElementById('systemStats').innerHTML = `
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h4 class="text-primary">${users.length}</h4>
+                            <small>Total Users</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-success">${projects.length}</h4>
+                            <small>Total Projects</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-warning">${tasks.length}</h4>
+                            <small>Total Tasks</small>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('systemStats').innerHTML = '<p class="text-danger">Error loading statistics</p>';
+            }
+        }
+
+        async function testAdminAPI() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch('/api/v1/auth/admin-only', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                showResults('Admin API Test', data);
+            } catch (error) {
+                showResults('Admin API Test', { error: error.message });
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch('/api/v1/users/', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const users = await response.json();
+                showResults('All Users', users);
+            } catch (error) {
+                showResults('Load Users', { error: error.message });
+            }
+        }
+
+        async function seedData() {
+            try {
+                const response = await fetch('/seed-data', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                showResults('Seed Data', data);
+                
+                // Reload stats after seeding
+                setTimeout(loadSystemStats, 1000);
+            } catch (error) {
+                showResults('Seed Data', { error: error.message });
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                showResults('Health Check', data);
+            } catch (error) {
+                showResults('Health Check', { error: error.message });
+            }
+        }
+
+        function viewLogs() {
+            showResults('System Logs', {
+                message: "In a real application, this would show server logs",
+                note: "This is a demo feature for QA testing purposes"
+            });
+        }
+
+        function showResults(title, data) {
+            document.getElementById('resultsTitle').textContent = title;
+            document.getElementById('resultsContent').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                document.getElementById('resultsSection').style.display = 'none';
+            }, 10000);
+        }
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('token_type');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>

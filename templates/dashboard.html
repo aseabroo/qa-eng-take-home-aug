@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - QA Take-Home Exam</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .protected-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .feature-card {
+            transition: transform 0.2s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Task Manager</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3" id="userInfo">Loading...</span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="protected-content">
+            <h1><i class="fas fa-lock"></i> Protected Dashboard</h1>
+            <p class="lead">Welcome to the secure area! You have successfully authenticated.</p>
+            <p class="mb-0">This page demonstrates JWT-based authentication and role-based access control.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card user-info">
+                    <div class="card-header">
+                        <h5><i class="fas fa-user"></i> Your Information</h5>
+                    </div>
+                    <div class="card-body" id="userDetails">
+                        <p>Loading user information...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title"><i class="fas fa-shield-alt text-success"></i> Protected API</h5>
+                                <p class="card-text">Test authenticated API endpoints</p>
+                                <button class="btn btn-success" onclick="testProtectedAPI()">Test API</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="card feature-card h-100" id="adminCard" style="display: none;">
+                            <div class="card-body text-center">
+                                <h5 class="card-title"><i class="fas fa-crown text-warning"></i> Admin Panel</h5>
+                                <p class="card-text">Access admin-only features</p>
+                                <a href="/admin" class="btn btn-warning">Go to Admin</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title"><i class="fas fa-tasks text-primary"></i> Task Management</h5>
+                                <p class="card-text">Manage your tasks and projects</p>
+                                <a href="/" class="btn btn-primary">View Tasks</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title"><i class="fas fa-cog text-secondary"></i> API Docs</h5>
+                                <p class="card-text">Explore the API documentation</p>
+                                <a href="/docs" target="_blank" class="btn btn-secondary">View Docs</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-bug"></i> QA Testing Scenarios</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Authentication Tests:</h6>
+                                <ul>
+                                    <li>Valid login credentials</li>
+                                    <li>Invalid login attempts</li>
+                                    <li>Token expiration handling</li>
+                                    <li>Logout functionality</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Authorization Tests:</h6>
+                                <ul>
+                                    <li>Protected page access</li>
+                                    <li>Role-based restrictions</li>
+                                    <li>API endpoint protection</li>
+                                    <li>Session management</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="apiTestResults" class="alert alert-info mt-3" style="display: none;">
+            <h6>API Test Results:</h6>
+            <pre id="apiOutput"></pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthentication();
+            loadUserInfo();
+        });
+
+        function checkAuthentication() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                alert('Please log in to access this page');
+                window.location.href = '/login';
+                return;
+            }
+        }
+
+        async function loadUserInfo() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch('/api/v1/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    currentUser = await response.json();
+                    updateUserDisplay();
+                } else if (response.status === 401) {
+                    alert('Your session has expired. Please log in again.');
+                    logout();
+                } else {
+                    throw new Error('Failed to load user information');
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+                document.getElementById('userInfo').textContent = 'Error loading user info';
+            }
+        }
+
+        function updateUserDisplay() {
+            if (currentUser) {
+                document.getElementById('userInfo').innerHTML = 
+                    `Welcome, ${currentUser.name} (${currentUser.role})`;
+                
+                document.getElementById('userDetails').innerHTML = `
+                    <p><strong>Name:</strong> ${currentUser.name}</p>
+                    <p><strong>Email:</strong> ${currentUser.email}</p>
+                    <p><strong>Role:</strong> <span class="badge bg-${currentUser.role === 'admin' ? 'primary' : 'secondary'}">${currentUser.role}</span></p>
+                    <p><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                `;
+
+                // Show admin card if user is admin
+                if (currentUser.role === 'admin') {
+                    document.getElementById('adminCard').style.display = 'block';
+                }
+            }
+        }
+
+        async function testProtectedAPI() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch('/api/v1/auth/protected', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                document.getElementById('apiOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('apiTestResults').style.display = 'block';
+                
+                setTimeout(() => {
+                    document.getElementById('apiTestResults').style.display = 'none';
+                }, 5000);
+            } catch (error) {
+                console.error('API test error:', error);
+                alert('Error testing API');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('token_type');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>
