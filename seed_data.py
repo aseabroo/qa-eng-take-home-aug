@@ -3,6 +3,11 @@ from app.core.database import engine
 from app.models.models import User, Project, Task, Label, TaskLabelLink
 from app.models.enums import UserRole, TaskStatus, TaskPriority
 from datetime import datetime, timedelta
+import os
+
+db_host = os.getenv("DB_HOST", "localhost" if os.getenv("ENV") == "test" else "db")
+
+DATABASE_URL = f"postgresql://postgres:password@{db_host}:5432/postgres"
 
 def seed_test_data():
     from app.core.auth import get_password_hash
