@@ -1,0 +1,15 @@
+Set-up
+1. Git clone https://github.com/aseabroo/qa-eng-take-home-aug.git
+2. cd into qa-eng-take-home-aug
+3. docker-compose up --build
+4. Open a new terminal and install test deps:
+    Create a virtual environment and install httpx and pytest; 
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt  # or manually:
+        pip install httpx pytest
+5. Run the test.
+
+Restart: reset and reinitialize
+1. docker-compose down -v # Stop and remove containers + volumes
+2. docker-compose up --build
